@@ -18,7 +18,7 @@ skonda29
 
 https://github.com/codepath/pathreview-ai301-fa26-s3/issues/62#issuecomment-5902202860
 
-Hi, I'd like to pick this one up as my Unit 2 issue. I have not fixed or reproduced it yet; this comment is to say what I am doing and what I will post back.
+Hi, I'd like to pick this one up as my Unit 2 issue. I have not posted a reproduction yet; this comment is to say what I am doing and what I will post back.
 
 What drew me to it: `api/routes/health.py` builds its Redis client from `settings.redis_host` and `settings.redis_port`, and `Settings` in `core/config.py` defines neither — it carries a single `redis_url` field. Reading the code, the `except Exception` around that probe looks like what turns the resulting `AttributeError` into `"redis": "unhealthy"` and a 503 even with Redis up — that is the part I want to confirm by running it rather than assert from the source. `pyproject.toml` also carries a mypy `attr-defined` baseline entry pointing at this file and naming this issue, which lines up with that reading.
 
@@ -27,6 +27,10 @@ Next steps for me, in order: set up the sandbox per `docs/SETUP.md` (Docker serv
 I am not promising a fix or a date, only the investigation and the report. If it turns out I cannot reproduce it, I will post that result with the transcript instead.
 
 Two notes on process. I see several classmates are working this issue as their Unit 2 target; per the course's sandbox rules I am posting my own claim and will produce my own reproduction independently rather than piggybacking on theirs. And for disclosure: I am using an AI assistant to help organize my notes and draft this comment; I am running every step myself and I understand what I am reporting.
+
+---
+
+*Edited to correct this comment. As originally posted, the first sentence read "I have not fixed or reproduced it yet." That was not accurate at the time: I had already run the bug locally about an hour and a half earlier, though I had not yet produced the documented reproduction this comment goes on to promise. I would rather fix the sentence and say so than leave a claim standing that overstated how little I had done. The reproduction report is in a later comment on this thread, and the rest of this comment is unchanged.*
 
 **Reproduction comment**
 

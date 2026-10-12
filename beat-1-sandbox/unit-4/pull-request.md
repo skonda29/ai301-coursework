@@ -8,14 +8,7 @@ Path: `beat-1-sandbox/unit-4/pull-request.md`
 
 **Pull request**
 
-<!-- PASTE THE PR URL HERE after opening it. Open with:
-     cd ~/Desktop/codepath/pathreview-ai301-fa26-s3
-     gh pr create --repo codepath/pathreview-ai301-fa26-s3 \
-       --base main --head skonda29:fix/62-health-redis-url \
-       --title "$(head -1 pr_draft.md)" \
-       --body "$(tail -n +2 pr_draft.md)"
-     Then replace this whole comment with the printed PR link:
-     https://github.com/codepath/pathreview-ai301-fa26-s3/pull/<N> -->
+https://github.com/codepath/pathreview-ai301-fa26-s3/pull/175
 
 **Branch**
 

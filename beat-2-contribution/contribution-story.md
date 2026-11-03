@@ -55,10 +55,29 @@ happened; these entries are the toolkit's own timeline.
 All four entries are graded. Keep every heading below, and fill each
 one in the week it belongs to.
 
-**Unit 5: [one line on the tool work]**
+**Unit 5: built the issue-scout, then threw out my whole search strategy before it ever ran a scan**
 
-[2-4 sentences: what you built (the scout, your strategy), what broke
-or fell short, what changed because of it.]
+I installed the scout over my unit-1 issue-select skill and wrote
+`search-strategy.md` from scratch: seven `gh search issues` queries each
+traced to a sentence of my fit profile, six drop conditions, and a
+four-key ordering. Running those queries in my terminal before trusting
+them to the scout is what caught the problem — my unscoped
+`--language python` and `--language typescript` sweeps returned 482
+results whose top five were all issues opened that same day in
+brand-new personal repos and Hacktoberfest label farms, one of them
+titled "Hacktoberfest Task - Add new Japan Fact 2499". The ranking
+stage could not fix that, because `gh search issues --json repository`
+returns only `{name, nameWithOwner}` and GitHub's issue search has no
+`stars:` qualifier, so my "fewest comments first" rule was actively
+selecting for repos nobody had discovered yet, and requiring issues
+older than 30 days collapsed the pool from 482 to 4 stale `next.js`
+threads. So I moved the fix into the queries and anchored every one
+with `--owner` to the roughly 25 organizations in the project areas my
+profile actually names, which left the same unchanged ordering
+returning `nodejs/doc-kit`, `jupyterlab/lumino`, `TanStack/router`, and
+`nodejs/bluesky#49` ("Setup integration tests for process.js") — real
+projects in my areas, bought at the honest cost of no longer searching
+all of GitHub.
 
 **Unit 6: [one line on the tool work]**
 

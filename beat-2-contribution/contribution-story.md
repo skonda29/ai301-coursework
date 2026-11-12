@@ -126,7 +126,8 @@ of why I'm limiting my first PR to the issue's Tasks section. The
 thread has 0 comments, no assignee and no linked PR, so nobody is there
 to collide with. I want to learn to find my way around a codebase this
 size. I also want to write tests that meet the repo's 100% line and
-branch coverage bar. Claim comment: claim pending, 2026-11-12.
+branch coverage bar. Claim comment, posted 2026-11-12:
+https://github.com/ICTU/quality-time/issues/11842#issuecomment-6839302322
 
 On a real wild search the scout fell short in ways I only saw by
 running it. My first queries were unscoped language-wide sweeps. They
@@ -488,8 +489,8 @@ Scoped my first PR to the issue's Tasks section: the `licenses` metric
 in the shared data model, the `DependencyTrackLicense` collector, and
 the changelog. The acceptance criteria also ask for a per-component
 display. The Tasks section doesn't list any frontend work, so I left
-the display out. My claim draft asks `fniessink` whether it belongs in
-this PR or a follow-up. The agent running my coursework steps made this
+the display out. My claim comment asks the maintainers on the thread
+whether it belongs in this PR or a follow-up. The agent running my coursework steps made this
 call, and I'm keeping it until the maintainer answers. I also counted
 the parameters in the issue body myself. The Tasks section names none.
 The acceptance criteria list seven, and four of them are

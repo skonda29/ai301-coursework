@@ -55,29 +55,29 @@ happened; these entries are the toolkit's own timeline.
 All four entries are graded. Keep every heading below, and fill each
 one in the week it belongs to.
 
-**Unit 5: built the issue-scout, then threw out my whole search strategy before it ever ran a scan**
+**Unit 5: built the issue-scout, rewrote its queries before the first scan, then patched two rubric checks after it**
 
-I installed the scout over my unit-1 issue-select skill and wrote
-`search-strategy.md` from scratch: seven `gh search issues` queries each
-traced to a sentence of my fit profile, six drop conditions, and a
-four-key ordering. Running those queries in my terminal before trusting
-them to the scout is what caught the problem — my unscoped
-`--language python` and `--language typescript` sweeps returned 482
-results whose top five were all issues opened that same day in
-brand-new personal repos and Hacktoberfest label farms, one of them
-titled "Hacktoberfest Task - Add new Japan Fact 2499". The ranking
-stage could not fix that, because `gh search issues --json repository`
-returns only `{name, nameWithOwner}` and GitHub's issue search has no
-`stars:` qualifier, so my "fewest comments first" rule was actively
-selecting for repos nobody had discovered yet, and requiring issues
-older than 30 days collapsed the pool from 482 to 4 stale `next.js`
-threads. So I moved the fix into the queries and anchored every one
-with `--owner` to the roughly 25 organizations in the project areas my
-profile actually names, which left the same unchanged ordering
-returning `nodejs/doc-kit`, `jupyterlab/lumino`, `TanStack/router`, and
-`nodejs/bluesky#49` ("Setup integration tests for process.js") — real
-projects in my areas, bought at the honest cost of no longer searching
-all of GitHub.
+I installed the scout over my unit-1 skill and wrote
+`search-strategy.md` from scratch — seven `gh search issues` queries,
+six drop conditions, a four-key ordering — then threw the first version
+out when running it in my terminal returned 482 results topped by
+same-day Hacktoberfest repos, one issue literally titled "Hacktoberfest
+Task - Add new Japan Fact 2499", so I anchored every query with
+`--owner` to the 25 organizations in my profile's areas. The scan had
+to be run by hand with `gh` and the GitHub API rather than through the
+`claude` CLI, whose OAuth session is expired, and it graded the top 5 of
+422 unique issues: one accept, `jupyterlab/lumino#449`, and four
+rejects. Two of those verdicts turned out to be my rubric misreading
+real repos — `maintainer-active` failed `nodejs/bluesky#49` for having
+no human commits when all 30 of that repo's newest commits are
+bot-written by design and a MEMBER had approved an outside
+contributor's pull request 92 days ago, and `scope-bounded` rejected
+`jupyterlab/jupyter-ai#1327` for a "90-day design debate" in a thread
+holding exactly one comment. So I patched `maintainer-active` to trace
+a bot commit through to whoever merged or reviewed it, and rewrote that
+`scope-bounded` clause to measure from when the question was raised
+rather than from the newest comment, which flips `bluesky#49` to accept
+on a re-grade and leaves the `jupyter-ai` reject defensible.
 
 **Unit 6: [one line on the tool work]**
 

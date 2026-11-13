@@ -83,10 +83,15 @@ came from CONTRIBUTING.md, AGENTS.md, the developer manual and one
 $0.36 orientation run, which found that the collector lookup needs a
 class named `DependencyTrackLicenses`.
 
-**Unit 7: [one line on the tool work]**
+**Unit 7: wrote the gate manifest, and the ship-gate passed my branch**
 
-[2-4 sentences: the ship-gate and your gate manifest. What it produced
-on your real branch, what fought you, what changed because of it.]
+My `ship-manifest.md` lists four checks from `.github/workflows/ci.yml`:
+`just test` and `just check` in `shared_code` and in `collector`. Gate
+run 1 on `11842-licenses-metric` printed PASS, with all four checks ok
+and pr-precheck accepting on 6 of 6 checks for $0.29. Neither the gate
+nor my voice guard prints its cost, so I put a wrapper on PATH that
+adds `--output-format json`. I changed nothing in the manifest or the
+rubric.
 
 **Unit 8: [one line on the tool work]**
 
@@ -301,9 +306,9 @@ The first challenge was that `uv` and `just` weren't installed. Every
 `just` recipe shells out through `uv`, so nothing ran until `brew
 install uv just`. The second was Node. The frontend's `package.json`
 pins `"node": "26.13.0"`, the developer manual says "we currently use
-Node.js v25", and I have v24.4.1. I didn't install Node 26, because the
-frontend display is out of scope for my first PR. The frontend is not
-built or tested here. A smaller one: `just` prints only one OK line per
+Node.js v25", and I have v24.4.1. I didn't install Node 26, because my
+first PR changes no frontend code. The frontend is not built or tested
+here. A smaller one: `just` prints only one OK line per
 recipe and hides test output unless something fails. To see counts I
 ran `PYTHONPATH=src uv run python -m unittest` directly: 26 tests in
 `test_dependencies.py`, 799 in the collector. I read coverage with
@@ -427,45 +432,238 @@ metric next to it as the contrast case.
 
 **Analysis**
 
-[Your analysis of the root cause: what is causing the issue, traced
-to the files and functions involved.]
+Nothing is broken. The metric was never built. My repro commit
+`1c4e546` adds two tests, and both fail on `master` at `ef52a51`. One
+says `'licenses' not found in [...]` for `DATA_MODEL.metrics`. The
+other says `get_subclass("dependency_track", "licenses")` returned
+None. The collector also logs "Couldn't find collector subclass for
+source dependency_track and metric licenses".
+
+The metric has to exist in the shared data model first. Metrics live
+in the `METRICS` dict in
+`components/shared_code/src/shared_data_model/metrics.py`. The closest
+sibling is `"dependencies"` at line 107. It counts Dependency-Track
+components with the units `Unit.DEPENDENCIES` and `Unit.DEPENDENCY`.
+The data model checks itself in `meta/data_model.py`, so three more
+files must change with it. `check_quality_time_metric_types` fails
+unless the name is in `ALL_METRICS` in `sources/quality_time.py`.
+`check_subjects` fails unless a subject in `subjects.py` lists the
+metric. Two more checks tie the metric to the source's parameters in
+`sources/dependency_track.py`. There, `ALL_DEPENDENCY_TRACK_METRICS`
+(line 18) lists the metrics that get the `url` parameter. Each other
+parameter names its metrics in `metrics=[...]`. The `entities=` dict
+sets the columns of the measurement details.
+
+The collector is found by name. `SourceCollector.get_subclass` in
+`base_collectors/source_collector.py` lowercases each class name. It
+compares that with `f"{source_type}{metric_type}"` without
+underscores. So the class must be `DependencyTrackLicenses`. The
+issue's `DependencyTrackLicense` would not be found.
+
+`DependencyTrackBase` in `dependency_track/base.py` already handles
+the API key, paging, the project filters and component streaming.
+Its `__slim_component` keeps only name, uuid, directDependencies,
+repositoryMeta and version. That drops the license fields, so they
+must be added there and to `DependencyTrackComponent` in
+`json_types.py`. I read the Dependency-Track 4.13 source for the
+field names. A component carries `resolvedLicense` (with `uuid`,
+`name` and `licenseId`) when Dependency-Track matched its license. It
+carries only a `license` string when it didn't. The paged `v1/license`
+endpoint returns `licenseGroups`, `isOsiApproved`, `isFsfLibre` and
+`isDeprecatedLicenseId` for each license.
 
 **Proposed Solution**
 
-[High-level description of your fix approach, and what you are
-deliberately NOT changing.]
+I will add a "Licenses" metric with Dependency-Track as its only
+source. It counts the components of the selected projects that have a
+license and pass the license filters. Components without a license
+aren't counted.
+
+All seven parameters from the acceptance criteria go in. Five already
+exist and only need `"licenses"` in their `metrics` lists: project
+names, project versions, "only include latest project versions",
+`components_to_include` and `components_to_ignore`. Six filters are
+new, in include/ignore pairs named like the repo's other filters:
+
+- `licenses_to_include` and `licenses_to_ignore` take regular
+  expressions. They match the license name or SPDX id.
+- `license_groups_to_include` and `license_groups_to_ignore` offer
+  Dependency-Track's four default groups: Copyleft, Weak Copyleft,
+  Permissive and Non-Commercial.
+- `license_attributes_to_include` and `license_attributes_to_ignore`
+  offer OSI-approved, FSF-Libre and Deprecated.
+
+The per-component display is now in scope, and it needs no frontend
+code. `SourceEntities.jsx` builds the details table from the data
+model's `entities`. `SourceEntityAttribute.jsx` turns a cell with a
+`url` into a link. The developer manual's "Adding a new metric" says
+the same: only the data model changes. The 'CI-pipelines' metric
+(`c74696df4`, #14531) touched no frontend file. So a `"licenses"`
+entity gives the table. It shows project, project version, component,
+component version, license, license groups and license attributes.
+The component links to `{landing_url}/components/{uuid}` through the
+existing `_landing_url_of_component`. The issue writes `/component/`,
+but the sibling metrics already use the plural. My claim left the
+display out, so the PR description will say why it's back in. It will
+offer to split it out.
+
+I'm deliberately not changing:
+
+- frontend code, API-server code or the database;
+- the `Unit` values, because the metric counts dependencies, which
+  already have a unit;
+- user-made license groups or license risk classification, which the
+  issue puts out of scope;
+- the dependencies and security warnings collectors, which only see
+  two more optional fields per component.
+
+One risk is open. I haven't run a live Dependency-Track. If
+`v1/license` lacks `licenseGroups`, the groups column stays empty and
+the group filters match nothing. I'll ask about it in the PR.
 
 **Implementation Plan**
 
-1. [Modify file X to do Y]
-2. [Add or change Z]
-3. [Update tests]
+1. Add the data model pieces in
+   `components/shared_code/src/shared_data_model/`. Add the
+   `"licenses"` metric to `metrics.py`. In `sources/dependency_track.py`,
+   add `"licenses"` to `ALL_DEPENDENCY_TRACK_METRICS` and to six
+   existing parameters. Those are the API key and the five filters
+   above. Add the six new filters and a `"licenses"`
+   entity there too. Add `"Licenses": "licenses"` to `ALL_METRICS` in
+   `sources/quality_time.py`. Add `"licenses"` to the
+   `software_source_code` subject in `subjects.py`. Verify: `just
+   test` and `just check` in `components/shared_code` exit 0 at 100%
+   coverage.
+2. Keep the license fields on each component. Add the license
+   TypedDicts and two optional fields to `DependencyTrackComponent` in
+   `json_types.py`. Copy `license` and a slim `resolvedLicense` in
+   `__slim_component` in `base.py`. Verify: `test_dependencies.py`
+   still passes unchanged.
+3. Add the `DependencyTrackLicenses` collector in a new
+   `dependency_track/licenses.py`, and import it in
+   `source_collectors/__init__.py`. It reads the projects, then all
+   pages of `v1/license`, then each project's components. It builds
+   one entity per licensed component and filters in `_include_entity`.
+4. Extend `test_licenses.py`. Keep the two repro tests unchanged. Add
+   collector tests that assert the exact entities for a resolved
+   license, an unresolved license, a missing license, and each filter.
+   Re-run the reproduction with `PYTHONPATH=src uv run python -m
+   unittest tests.source_collectors.dependency_track.test_licenses -v`.
+   Both repro tests should print `ok`.
+5. Run `just fix` in `components/collector` to add the class to
+   `.vulture-whitelist.py`. Verify: `just test` stays at 100% coverage
+   and `just check` passes all checks.
+6. Add a changelog entry to `docs/src/changelog.md`, in a new `##
+   [Unreleased]` section with an `### Added` list. It goes above `##
+   v5.62.1 - 2026-11-09`.
+7. Commit on `11842-licenses-metric` with a short imperative subject
+   and `Closes #11842.` in the body.
 
-[Record deviations here as they happen: what changed mid-build and
-why. A recorded deviation is honest work; silent drift is not.]
+Two deviations are from my claim. The class name is plural, because
+the lookup needs it. The display is back in scope, because it takes no
+frontend code.
+
+The build is commit `6fd1d82`, and it changed three things in this
+plan. In step 5, `just fix` also renumbered about 20 whitelist entries
+for unrelated collectors. Their line numbers have been stale on
+`master` since `b7213a7fc`. I kept only the 8 new entries and the 2
+that my edit moved. The collector reads the three license flags with
+literal keys, not with a class constant. The test file got 22
+collector tests, four more than I planned.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: plan-check, run once from the clone root as `claude -p
+  "plan-check: grade my plan in plan.md and draft comment in
+  plan-comment.md for issue
+  https://github.com/ICTU/quality-time/issues/11842"`. The allow-list
+  was read-only, and the public `gh` write commands and `git push`
+  were disallowed. `plan-comment.md` is kept out of git and isn't
+  posted.
+- What it produced: accept on run 1, in 17 turns, for $0.66. All five
+  required checks and both preferred checks passed. Its closest call
+  was `thread-and-conventions`. My comment didn't mention that the
+  component link uses `/components/` and the issue writes
+  `/component/`.
+- Difficulties: the run cost $0.66, not the $0.40 the course quotes.
+  The allow-list denied 3 of its commands. One of them was the repro
+  test re-run, because it started with `PYTHONPATH=src`. So it checked
+  my saved test output instead of running the tests. It also found a
+  gap in my `procedure.md`. Live mode grades my posted repro comment,
+  and #11842 has only my claim. It graded the repro my drafts quote.
+- What changed: before the run, I put the fork commit URL into
+  `plan.md`, so the repro evidence is in the package. After the
+  accept, I added the `/components/` line to `plan-comment.md`. That
+  line wasn't re-graded. I'd next add a step to `procedure.md` for an
+  issue with no posted repro comment. I haven't made it.
 
 ---
 
 ## Testing Strategy
 
-[What observable checks prove the fix: your reproduction steps re-run
-against the built change (before and after), and the repo's own test
-suite or checks with the outcome shown. "Tests pass" with nothing
-observable named is not a strategy.]
+Three checks prove the fix. All three ran on 2026-11-12 against the
+code in commit `6fd1d82` on `11842-licenses-metric`. The full output
+is in `test_evidence.md` in the clone.
+
+First, I re-ran my reproduction on the branch, with the same scripts
+as on `master`. Before, `licenses` was False on all three data model
+checks, and `get_subclass` returned None. After:
+
+```text
+$ cd components/shared_code && PYTHONPATH=src uv run python /tmp/qt_dm.py
+'licenses': in DATA_MODEL.metrics=True; dependency_track in metric sources=True; in dependency_track entities=True
+
+$ cd components/collector && PYTHONPATH=src uv run python /tmp/qt_col.py
+get_subclass('dependency_track', 'licenses') -> <class 'source_collectors.dependency_track.licenses.DependencyTrackLicenses'>
+```
+
+Second, I re-ran the repro test file. On `master` both tests failed
+(`FAILED (failures=2)`). The file now holds those two tests unchanged
+and 22 new collector tests. The run ended `Ran 24 tests in 0.148s`
+and `OK`. The new tests mock Dependency-Track with the fixtures in
+`base_test.py`. The mocked calls come in order: projects, then the
+license list, then the components. Each test asserts the exact value
+and the exact entities. The cases are a resolved license, a resolved
+license missing from the license list, an unresolved license string,
+and a component with no license. Each new filter is tested with a
+match and without one.
+
+Third, I ran the four checks in my ship manifest. Each ran in a fresh
+shell (`env -i HOME="$HOME" PATH=... zsh -c '...'`).
+
+- `cd components/shared_code && just test`: exit 0. Coverage `TOTAL
+  3002 0 336 0 100%`.
+- `cd components/collector && just test`: exit 0. Coverage `TOTAL
+  11022 0 1040 0 100%`, up from 10850 statements and 1018 branches on
+  `master`.
+- `cd components/collector && just check`: exit 0, all 11 checks OK.
+- `cd components/shared_code && just check`: exit 0, all 11 checks OK.
+
+The ship-gate ran the same four checks again on 2026-11-12 at 19:57 EST.
+All four were ok, in 7s, 28s, 15s and 7s. The code review also ran
+`docs/tests/test_changelog.py` once, because no manifest check covers
+`docs/src/changelog.md`. It printed `Ran 8 tests` and `OK`.
+
+Two things stay untested. I haven't run a live Dependency-Track, so
+the `licenseGroups` field comes from reading its source. I didn't run
+the frontend tests, because no frontend file changed.
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: the repo's own `just test` and `just check`, as listed in my
+  `ship-manifest.md`, each run in a fresh `env -i` shell. The agent running my
+  coursework steps ran them and saved the logs. It also ran `python -m
+  unittest -v` for test counts and `coverage report` for the totals.
+- What it produced: four runs with exit 0, 100% line and branch
+  coverage in both components, and 24 tests OK in `test_licenses.py`.
+- Difficulties: `just` hides the test counts and the coverage total.
+  My first read of the total used `tail -2`, which cut off the `TOTAL`
+  line. I re-read the same coverage data with `grep`. My older notes
+  said "12 checks", but one of the 12 OK lines is
+  `install-py-dependencies`.
+- What changed: the commit message and `test_evidence.md` now say 11
+  checks. The manifest could run `coverage report` itself, so the
+  total is part of the check. I haven't made that change.
 
 ---
 
@@ -533,23 +731,91 @@ with two tests. Both fail on `master`, with "'licenses' not found in
 [...]" and "unexpectedly None". Unit 7 will grow this file into the
 real tests for the collector.
 
+**2026-11-12**
+
+Put the per-component display back in scope. This replaces my earlier
+call to leave it out. The table comes from a `"licenses"` entity in
+the data model, so it needs no frontend code. The PR description will
+say so, and it will offer to split the table out.
+
+**2026-11-12**
+
+Built the fix in one commit, `6fd1d82`, on `11842-licenses-metric`. It
+sits on top of the repro commit `1c4e546`. I kept the two repro tests
+unchanged and added 22 collector tests to the same file.
+
+**2026-11-12**
+
+Wrong turn on the first test run. I ran `test_licenses.py` directly
+with `unittest`, and 18 of 24 tests failed with `KeyError:
+'licenses_to_include'`. The collector's environment still held the
+copy of shared_code from before my data model edit. `just test`
+reinstalls that copy, and after it all 24 tests passed.
+
+**2026-11-12**
+
+Wrong turn in the tests. `just fix` stopped on one of my tests. `ty`
+said "Cannot delete subscript on object of type `object`", because
+the test deleted `licenseId` from a nested fixture. I now build that
+fixture directly, without the field.
+
+**2026-11-12**
+
+Kept the whitelist diff small. `just fix` rewrote about 20 lines of
+`.vulture-whitelist.py` for collectors I didn't touch. Their line
+numbers have been stale on `master` since `b7213a7fc`. I restored
+master's file. Then I added only the 8 new entries and the 2 entries
+my edit moved. `just check` still passes vulture.
+
+**2026-11-12**
+
+Wrote `ship-manifest.md` with four checks, all taken from
+`.github/workflows/ci.yml` and `tools/just/ci.just`. I ran them on
+`master` at `ef52a51` in fresh `env -i` shells, and all four exited 0.
+Then I tested the hook with `claude -p "run this command: gh pr create
+--help"`. The ship-gate stopped it with "STOP. no PR text to check".
+The voice guard stopped it too. That proves the hook is wired, not
+that it judges well.
+
+**2026-11-12**
+
+Checked the PR text, then the branch. The voice guard passed
+`pr_draft.md` on run 1 (exit 0). Gate run 1 printed PASS at 19:59 EST.
+I pushed `11842-licenses-metric` to my fork. `origin` now points at
+`6fd1d82`, the same as my local branch. I haven't opened the PR yet.
+
+**2026-11-12**
+
+Left a commit subject as it is. My repro commit `1c4e546` has
+`(#11842)` in its subject, and AGENTS.md says the issue number belongs
+in the body. Pr-precheck pointed this out. Fixing it means rewriting
+both commits and force-pushing the repro branch. Every SHA in this
+story would change, and the gate's pass would no longer count.
+
 **Toolkit**
 
 - Tool: my repo-memory file `CLAUDE.local.md` in the clone, which
   starts with `@AGENTS.md`, plus the scoped orientation run that fed
-  it.
+  it. In Unit 7, the agent running my coursework steps built the fix
+  from `plan.md`. It used the commands in that file: `just test`,
+  `just check` and `just fix`.
 - What it produced: a 40-line file in four sections. They cover the
   conventions from CONTRIBUTING.md, the subsystem my issue touches, the
   build and test commands that ran OK on 2026-11-12, and house style
-  with the repo's AI policy ("none stated").
+  with the repo's AI policy ("none stated"). The build produced commit
+  `6fd1d82`. It changes 11 files, with 440 lines added and 10 removed.
 - Difficulties: no build command ran until I installed `uv` and
   `just`, which weren't on this Mac. The frontend's `engines.node` is
   26.13.0, and I have Node v24.4.1. The orientation run didn't cover
   the Dependency-Track license fields or the `v1/license` response.
+  During the build, two facts were missing from the file. The
+  collector tests use an installed copy of shared_code. And `just fix`
+  renumbers stale whitelist lines in files I didn't touch.
 - What changed: I installed uv 0.13.8 and just 1.59.0 with Homebrew
   and wrote them into the file as prerequisites. I skipped Node 26,
-  because the frontend is out of scope for my first PR. The two
-  unknowns sit under "Not yet checked" in the file.
+  because my first PR changes no frontend code. The two unknowns sit
+  under "Not yet checked" in the file. I'd add the two build facts to
+  `CLAUDE.local.md`. I haven't added them yet.
 
 ---
 
@@ -557,8 +823,25 @@ real tests for the collector.
 
 **PR Link:** [GitHub PR URL when opened]
 
-**PR Description:** [what the PR says; much of the content above
-adapts into it]
+**PR Description:** the title is "Add licenses metric with a
+Dependency-Track collector to resolve #11842". The repo has no PR
+template under `.github/`. The description opens with what the PR adds
+and `Fixes #11842` on its own line. "What changes" lists the data model
+pieces, the `DependencyTrackLicenses` collector, the two license fields
+kept in `base.py`, the changelog entry and the 8 new whitelist
+entries. "Choices a reviewer should know about" explains the plural
+class name and the `/components/{uuid}` link. It also names the fixed
+license groups and attributes, and says why the whitelist diff is
+small. A section on the per-component display says nobody has answered
+my claim's question. It says the table comes from the data model and
+changes no frontend file, and it offers to split the table out. The
+one open question asks whether `v1/license` returns `licenseGroups`.
+"Before and after" shows the two repro tests failing on `1c4e546` and
+24 tests passing on the branch. A table gives the four manifest checks
+with exit codes and coverage totals. The last section, "How I used
+AI", says Kiro and Claude Code did most of the investigation, code,
+tests and the draft. It says I chose the issue, set the scope, posted
+the claim and approved the work.
 
 **Maintainer Feedback:**
 
@@ -572,10 +855,28 @@ opened.]
 
 **Toolkit**
 
-- Tool:
-- What it produced:
-- Difficulties:
-- What changed:
+- Tool: my ship-gate, a `PreToolUse` hook at
+  `~/.claude/ship-gate/check_gate.py`, with `ship-manifest.md` in the
+  clone. I ran it by hand from the clone root as `python3
+  ~/.claude/ship-gate/check_gate.py --branch --title "..." --body-file
+  pr_draft.md --base master`. It runs the manifest checks, then one
+  pr-precheck call. My voice guard checked `pr_draft.md` first.
+- What it produced: the hook test on `master` printed "STOP. no PR
+  text to check", for $0.15. Gate run 1 on `11842-licenses-metric`
+  printed PASS at 19:59:17 EST. The four checks were ok in 7s, 28s, 15s
+  and 7s. Pr-precheck accepted, with all 6 checks passing, for $0.29.
+  The voice guard passed the draft (exit 0) for $0.10.
+- Difficulties: the gate and the guard call `claude -p` without
+  `--output-format json`, so neither reports its cost. Pr-precheck read
+  only the first 20000 characters of `plan.md`, which cut off the
+  Digest. Nothing it graded was in that part. It also flagged two
+  voice points without changing the verdict. "Tell me and I will split
+  it out" reads as a second ask. The description has seven headings.
+- What changed: for these two commands, I put a wrapper first on PATH
+  at `/tmp/qt-claude-cost-shim/claude`. It adds `--output-format json`
+  and saves the raw reply. I changed nothing in the manifest or the
+  rubric. I didn't edit `pr_draft.md` for the voice notes, because any
+  edit means running the gate again.
 
 ---
 
